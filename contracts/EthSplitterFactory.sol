@@ -12,7 +12,7 @@ contract EthSplitterFactory is Ownable {
 
   function registerSplitter(
     address _owner,
-    EthSplitter.Payee[] memory _payees
+    address payable[] memory _payees
   ) public onlyOwner {
     EthSplitter splitter = new EthSplitter(_payees);
     contracts.push(address(splitter));

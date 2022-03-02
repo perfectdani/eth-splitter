@@ -7,25 +7,20 @@ import "./interfaces/IERC20.sol";
 import "./Ownable.sol";
 
 contract TokenSplitter is Ownable {
-    struct Payee {
-        address payeeAddress;
-        uint256 share;
-    }
 
     IERC20 private token;
 
-    Payee[] private payees;
-    uint256 private totalShare;
+    address[] private payees;
 
     event ReceivedEth(address indexed fromAddress, uint256 amount);
-    event SplittedEth(uint256 amount, Payee[] payees);
-    event AddedPayees(Payee[] payees);
+    event SplittedEth(uint256 amount, address[] payees);
+    event AddedPayees(address[] payees);
     event RemovedPayees(address[] payees);
 
     using SafeMath for uint256;
 
     constructor(
-        Payee[] memory _payees,
+        address[] memory _payees,
         address _token
     ) {
         _addPayees(_payees);
@@ -42,12 +37,8 @@ contract TokenSplitter is Ownable {
         token = IERC20(_token);
     }
 
-    function getTotalShare() external view returns (uint256) {
-        return totalShare;
-    }
-
     function addPayees(
-        Payee[] memory _payees
+        address[] memory _payees
     ) external {
         _addPayees(_payees);
     }
@@ -57,24 +48,12 @@ contract TokenSplitter is Ownable {
     ) external onlyOwner {
         for (uint256 i = 0; i < payees.length; i++) {
             for (uint256 j = 0; j < _payeeAddresses.length; j++) {
-                if(payees[i].payeeAddress == _payeeAddresses[j]) {
-                    payees[i].share = 0;
+                if(payees[i] == _payeeAddresses[j]) {
+                    delete payees[i];
                 }
             }
         }
         emit RemovedPayees(_payeeAddresses);
-    }
-
-    function getShareWithAddress(
-        address _payeeAddress
-    ) external view returns (uint256) {
-        for (uint256 i = 0; i < payees.length; i++) {
-            if(payees[i].payeeAddress == _payeeAddress) {
-                uint256 payeeShare = payees[i].share;
-                return payeeShare;
-            }
-        }
-        return 0;
     }
 
     function getPayeesCount() public view returns (uint256) {
@@ -82,20 +61,16 @@ contract TokenSplitter is Ownable {
         return payeesCount;
     }
 
-    function getPayees() public view returns (Payee[] memory) {
+    function getPayees() public view returns (address[] memory) {
         return payees;
     }
 
     function _addPayees(
-        Payee[] memory _payees
+        address[] memory _payees
     ) internal onlyOwner {
         for (uint256 i = 0; i < _payees.length; i++) {
-            (uint256 index, bool isExist, bool hasShare) = _checkPayee(_payees[i]);
-            if(!hasShare) continue;
-            totalShare = totalShare.add(_payees[i].share);
-            if(isExist) {
-                payees[index] = _payees[i];
-            } else {
+            bool isExist = _checkPayee(_payees[i]);
+            if(!isExist) {
                 payees.push(_payees[i]);
             }
         }
@@ -103,16 +78,14 @@ contract TokenSplitter is Ownable {
     }
 
     function _checkPayee(
-        Payee memory _payee
-    ) internal returns (uint256, bool, bool) {
-        if(_payee.share == 0) return (0, false, false);
+        address _payee
+    ) internal view returns (bool) {
         for (uint256 i = 0; i < payees.length; i++) {
-            if(payees[i].payeeAddress == _payee.payeeAddress) {
-                totalShare = totalShare.sub(payees[i].share);
-                return (i, true, true);
+            if(payees[i] == _payee) {
+                return true;
             }
         }
-        return (0, false, true);
+        return false;
     }
 
     function split() external {
@@ -131,10 +104,18 @@ contract TokenSplitter is Ownable {
 
     function _split() internal onlyOwner {
         uint256 _amount = _getTokenBalance();
+        uint256 payeesCount;
         for (uint256 i = 0; i < payees.length; i++) {
-            address payee = payees[i].payeeAddress;
-            uint256 ethAmount = _amount.div(totalShare).mul(payees[i].share);
-            token.transfer(payee, ethAmount); // transfer percentage share
+            if(payees[i] != address(0)) {
+                payeesCount ++;
+            }
+        }
+        for (uint256 i = 0; i < payees.length; i++) {
+            if(payees[i] != address(0)) {
+                address payee = payees[i];
+                uint256 ethAmount = _amount.div(payeesCount);
+                token.transfer(payee, ethAmount);
+            }
         }
         emit SplittedEth(_amount, payees);
     }

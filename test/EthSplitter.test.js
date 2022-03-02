@@ -5,12 +5,6 @@ const inputData = require("./local.data.json");
 const newInputData = require("./new.local.data.json");
 
 describe("EthSplitter", function () {
-  it("EthSplitter deploy: totalShare:", async function () {
-    const EthSplitter = await ethers.getContractFactory("EthSplitter");
-    const ethSplitter = await EthSplitter.deploy(inputData);
-    await ethSplitter.deployed();
-    expect(await ethSplitter.totalShare()).to.equal(20);
-  });
   it("EthSplitter deploy: the count of initial payees:", async function () {
     const EthSplitter = await ethers.getContractFactory("EthSplitter");
     const ethSplitter = await EthSplitter.deploy(inputData);
@@ -39,6 +33,6 @@ describe("EthSplitter", function () {
     await ethSplitter.deployed();
     const addPayeesTrx = await ethSplitter.removePayees(['0x90f79bf6eb2c4f870365e785982e1f101e93b906'])
     await addPayeesTrx.wait();
-    expect(await ethSplitter.getShareWithAddress('0x90f79bf6eb2c4f870365e785982e1f101e93b906')).to.equal(0);
+    console.log(await ethSplitter.getPayees());
   });
 });

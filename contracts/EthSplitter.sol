@@ -5,56 +5,39 @@ import "./libs/SafeMath.sol";
 import "./Ownable.sol";
 
 contract EthSplitter is Ownable {
-    struct Payee {
-        address payable payeeAddress;
-        uint256 share;
-    }
 
-    Payee[] public payees;
-    uint256 public totalShare;
+    address payable[] public payees;
 
     event ReceivedEth(address indexed fromAddress, uint256 amount);
-    event SplittedEth(uint256 amount, Payee[] payees);
-    event AddedPayees(Payee[] payees);
-    event RemovedPayees(address[] payees);
+    event SplittedEth(uint256 amount, address payable[] payees);
+    event AddedPayees(address payable[] payees);
+    event RemovedPayees(address payable[] payees);
 
     using SafeMath for uint256;
 
     constructor(
-        Payee[] memory _payees
+        address payable[] memory _payees
     ) {
         _addPayees(_payees);
     }
 
     function addPayees(
-        Payee[] memory _payees
+        address payable[] memory _payees
     ) external payable {
         _addPayees(_payees);
     }
 
     function removePayees(
-        address[] memory _payeeAddresses
+        address payable[] memory _payeeAddresses
     ) external payable onlyOwner {
         for (uint256 i = 0; i < payees.length; i++) {
             for (uint256 j = 0; j < _payeeAddresses.length; j++) {
-                if(payees[i].payeeAddress == _payeeAddresses[j]) {
-                    payees[i].share = 0;
+                if(payees[i] == _payeeAddresses[j]) {
+                    delete payees[i];
                 }
             }
         }
         emit RemovedPayees(_payeeAddresses);
-    }
-
-    function getShareWithAddress(
-        address _payeeAddress
-    ) external view returns (uint256) {
-        for (uint256 i = 0; i < payees.length; i++) {
-            if(payees[i].payeeAddress == _payeeAddress) {
-                uint256 payeeShare = payees[i].share;
-                return payeeShare;
-            }
-        }
-        return 0;
     }
 
     function getPayeesCount() public view returns (uint256) {
@@ -62,20 +45,16 @@ contract EthSplitter is Ownable {
         return payeesCount;
     }
 
-    function getPayees() public view returns (Payee[] memory) {
+    function getPayees() public view returns (address payable[] memory) {
         return payees;
     }
 
     function _addPayees(
-        Payee[] memory _payees
+        address payable[] memory _payees
     ) internal onlyOwner {
         for (uint256 i = 0; i < _payees.length; i++) {
-            (uint256 index, bool isExist, bool hasShare) = _checkPayee(_payees[i]);
-            if(!hasShare) continue;
-            totalShare = totalShare.add(_payees[i].share);
-            if(isExist) {
-                payees[index] = _payees[i];
-            } else {
+            bool isExist = _checkPayee(_payees[i]);
+            if(!isExist) {
                 payees.push(_payees[i]);
             }
         }
@@ -83,16 +62,14 @@ contract EthSplitter is Ownable {
     }
 
     function _checkPayee(
-        Payee memory _payee
-    ) internal returns (uint256, bool, bool) {
-        if(_payee.share == 0) return (0, false, false);
+        address _payee
+    ) internal view returns (bool) {
         for (uint256 i = 0; i < payees.length; i++) {
-            if(payees[i].payeeAddress == _payee.payeeAddress) {
-                totalShare = totalShare.sub(payees[i].share);
-                return (i, true, true);
+            if(payees[i] == _payee) {
+                return true;
             }
         }
-        return (0, false, true);
+        return false;
     }
 
     receive() external payable {
@@ -108,10 +85,18 @@ contract EthSplitter is Ownable {
     }
 
     function _split(uint256 _amount) internal {
+        uint256 payeesCount;
         for (uint256 i = 0; i < payees.length; i++) {
-            address payable payee = payees[i].payeeAddress;
-            uint256 ethAmount = _amount.div(totalShare).mul(payees[i].share);
-            payee.call{ value: ethAmount };
+            if(payees[i] != address(0)) {
+                payeesCount ++;
+            }
+        }
+        for (uint256 i = 0; i < payees.length; i++) {
+            if(payees[i] != address(0)) {
+                address payable payee = payees[i];
+                uint256 ethAmount = _amount.div(payeesCount);
+                payee.call{ value: ethAmount };
+            }
         }
         emit SplittedEth(_amount, payees);
     }
